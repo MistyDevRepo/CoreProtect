@@ -76,6 +76,9 @@ public class PluginInitializationService {
 
             // Start metrics
             enableMetrics(plugin);
+
+            // Run auto-purge if enabled
+            AutoPurgeService.runAutoPurge();
         }
 
         return start;

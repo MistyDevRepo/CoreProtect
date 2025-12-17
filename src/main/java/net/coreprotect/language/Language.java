@@ -35,6 +35,10 @@ public class Language {
         phrases.put(Phrase.AMOUNT_ENTITY, "{0} {entity|entities}");
         phrases.put(Phrase.AMOUNT_ITEM, "{0} {item|items}");
         phrases.put(Phrase.API_TEST, "API test successful.");
+        phrases.put(Phrase.AUTO_PURGE_MINIMUM, "Auto-purge time must be at least 24 hours.");
+        phrases.put(Phrase.AUTO_PURGE_SKIPPED, "Auto-purge skipped - another operation is in progress.");
+        phrases.put(Phrase.AUTO_PURGE_STARTED, "Starting auto-purge for data older than {0}...");
+        phrases.put(Phrase.AUTO_PURGE_SUCCESS, "Auto-purge completed. {0} rows removed.");
         phrases.put(Phrase.CACHE_ERROR, "WARNING: Error while validating {0} cache.");
         phrases.put(Phrase.CACHE_RELOAD, "Forcing reload of {mapping|world} caches from database.");
         phrases.put(Phrase.CHECK_CONFIG, "Please check config.yml");
@@ -149,6 +153,17 @@ public class Language {
         phrases.put(Phrase.LOOKUP_TIME, "{0} ago");
         phrases.put(Phrase.LOOKUP_USERNAME, "{0} logged in as {1}.");
         phrases.put(Phrase.MAXIMUM_RADIUS, "The maximum {lookup|rollback|restore} radius is {0}.");
+        phrases.put(Phrase.MIGRATE_FAILED, "Database migration failed.");
+        phrases.put(Phrase.MIGRATE_INVALID_TYPE, "Invalid database type. Use sqlite or h2.");
+        phrases.put(Phrase.MIGRATE_MYSQL_ACTIVE, "Cannot migrate while MySQL is active. Disable MySQL in config first.");
+        phrases.put(Phrase.MIGRATE_PROCESSING, "Migrating {0}...");
+        phrases.put(Phrase.MIGRATE_PROGRESS, "Migration progress: {0}% ({1}/{2} tables)");
+        phrases.put(Phrase.MIGRATE_RESTART, "Please update config.yml and restart the server to use the new database.");
+        phrases.put(Phrase.MIGRATE_SAME_TYPE, "Source and target database types must be different.");
+        phrases.put(Phrase.MIGRATE_SOURCE_NOT_FOUND, "{0} database not found.");
+        phrases.put(Phrase.MIGRATE_STARTED, "Starting database migration from {0} to {1}...");
+        phrases.put(Phrase.MIGRATE_SUCCESS, "Migration completed. {0} rows migrated from {1} to {2}.");
+        phrases.put(Phrase.MIGRATE_TARGET_EXISTS, "{0} database already exists. Please delete or rename it first.");
         phrases.put(Phrase.MISSING_ACTION_USER, "To use that action, please specify a user.");
         phrases.put(Phrase.MISSING_LOOKUP_TIME, "Please specify the amount of time to {lookup|rollback|restore}.");
         phrases.put(Phrase.MISSING_LOOKUP_USER, "Please specify a user or {block|radius} to lookup.");

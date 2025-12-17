@@ -91,6 +91,7 @@ public class Config extends Language {
     public boolean UNKNOWN_LOGGING;
     public boolean USERNAME_CHANGES;
     public boolean WORLDEDIT;
+    public String AUTO_PURGE_DATA;
     public int MAXIMUM_POOL_SIZE;
     public int MYSQL_PORT;
     public int DEFAULT_RADIUS;
@@ -147,6 +148,7 @@ public class Config extends Language {
         DEFAULT_VALUES.put("player-sessions", "true");
         DEFAULT_VALUES.put("username-changes", "true");
         DEFAULT_VALUES.put("worldedit", "true");
+        DEFAULT_VALUES.put("auto-purge-data", "0");
         DEFAULT_VALUES.put("sqlite-auto-vacuum", "false");
         DEFAULT_VALUES.put("sqlite-page-size", "4096");
 
@@ -194,6 +196,7 @@ public class Config extends Language {
         HEADERS.put("player-sessions", new String[] { "# Logs the logins and logouts of players." });
         HEADERS.put("username-changes", new String[] { "# Logs when a player changes their Minecraft username." });
         HEADERS.put("worldedit", new String[] { "# Logs changes made via the plugin \"WorldEdit\" if it's in use on your server." });
+        HEADERS.put("auto-purge-data", new String[] { "# Automatically purge data older than the specified time on server startup.", "# Set to \"0\" to disable. Examples: \"30d\" (30 days), \"2w\" (2 weeks), \"6mo\" (6 months)." });
         HEADERS.put("sqlite-auto-vacuum", new String[] { "# SQLite disk space optimization options below. Only applicable when using SQLite.", "# If enabled, automatically reclaims unused space to reduce database file size.", "# May reduce file size by approximately 10-25% but slightly impacts write performance." });
         HEADERS.put("sqlite-page-size", new String[] { "# SQLite page size in bytes. Valid values: 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536.", "# Smaller values (1024-2048) may reduce file size by 5-15% for databases with small records.", "# Larger values (8192-16384) improve performance for large BLOB data. Default: 4096." });
     }
@@ -261,6 +264,7 @@ public class Config extends Language {
         this.PLAYER_SESSIONS = this.getBoolean("player-sessions");
         this.USERNAME_CHANGES = this.getBoolean("username-changes");
         this.WORLDEDIT = this.getBoolean("worldedit");
+        this.AUTO_PURGE_DATA = this.getString("auto-purge-data", "0");
     }
 
     public static void init() throws IOException {

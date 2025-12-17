@@ -421,7 +421,8 @@ public class PurgeCommand extends Consumer {
                             }
                         }
 
-                        if (Config.getGlobal().MYSQL) {
+                        // H2 and MySQL use in-place DELETE for purge
+                        if (Config.getGlobal().MYSQL || Config.getGlobal().H2) {
                             try {
                                 boolean purge = purgeTables.contains(table);
 
@@ -468,6 +469,10 @@ public class PurgeCommand extends Consumer {
                             preparedStmt.execute();
                             preparedStmt.close();
                         }
+                    }
+                    else if (Config.getGlobal().H2 && optimize) {
+                        // H2 optimization - SHUTDOWN COMPACT or just close and let it optimize
+                        Chat.sendGlobalMessage(player, Phrase.build(Phrase.PURGE_OPTIMIZING));
                     }
 
                     connection.close();
