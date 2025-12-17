@@ -264,7 +264,8 @@ public class Config extends Language {
         this.PLAYER_SESSIONS = this.getBoolean("player-sessions");
         this.USERNAME_CHANGES = this.getBoolean("username-changes");
         this.WORLDEDIT = this.getBoolean("worldedit");
-        this.AUTO_PURGE_DATA = this.getString("auto-purge-data", "0");
+        String autoPurge = this.getString("auto-purge-data");
+        this.AUTO_PURGE_DATA = (autoPurge != null) ? autoPurge : "0";
     }
 
     public static void init() throws IOException {

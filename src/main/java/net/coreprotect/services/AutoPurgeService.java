@@ -18,11 +18,7 @@ import net.coreprotect.utility.Chat;
 /**
  * Service responsible for automatic data purging based on configuration
  */
-public class AutoPurgeService {
-
-    private AutoPurgeService() {
-        throw new IllegalStateException("Utility class");
-    }
+public class AutoPurgeService extends Consumer {
 
     /**
      * Parse time string into seconds (e.g., "14d" -> 1209600)
