@@ -208,7 +208,7 @@ public class Database extends Queue {
 
                 // H2 connection URL with compression option
                 String compressOption = Config.getGlobal().H2_COMPRESS ? ";COMPRESS=TRUE" : "";
-                String database = "jdbc:h2:" + ConfigHandler.path + ConfigHandler.h2database + compressOption;
+                String database = "jdbc:h2:./" + ConfigHandler.path + ConfigHandler.h2database + ";NON_KEYWORDS=USER,TIME,VALUE" + compressOption;
                 connection = DriverManager.getConnection(database);
 
                 ConfigHandler.databaseReachable = true;
@@ -612,7 +612,14 @@ public class Database extends Queue {
 
     // H2 Database Methods
     private static void createH2Tables(String prefix, boolean forcePrefix, Connection forceConnection, boolean purge) {
-        try (Connection connection = (forceConnection != null ? forceConnection : Database.getConnection(true, 0))) {
+        Connection connection = null;
+        try {
+            connection = (forceConnection != null ? forceConnection : Database.getConnection(true, 0));
+            if (connection == null) {
+                Chat.console("§c[CoreProtect] Failed to get H2 database connection for table creation.");
+                return;
+            }
+            
             Statement statement = connection.createStatement();
             List<String> tableData = new ArrayList<>();
             List<String> indexData = new ArrayList<>();
@@ -625,9 +632,21 @@ public class Database extends Queue {
                 initializeH2Tables(prefix, statement);
             }
             statement.close();
+            Chat.console("§a[CoreProtect] H2 database tables created successfully.");
         }
         catch (Exception e) {
+            Chat.console("§c[CoreProtect] Error creating H2 tables: " + e.getMessage());
             e.printStackTrace();
+        }
+        finally {
+            if (forceConnection == null && connection != null) {
+                try {
+                    connection.close();
+                }
+                catch (SQLException e) {
+                    // ignore
+                }
+            }
         }
     }
 
@@ -654,6 +673,7 @@ public class Database extends Queue {
 
     private static void createH2TableStructures(String prefix, Statement statement, List<String> tableData) throws SQLException {
         // H2 uses IDENTITY for auto-increment and has different syntax than SQLite
+        // NON_KEYWORDS=USER,TIME,VALUE in connection string allows using these reserved words
         if (!tableData.contains(prefix.toLowerCase() + "art_map")) {
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "art_map (rowid IDENTITY, id INT, art VARCHAR(255))");
         }

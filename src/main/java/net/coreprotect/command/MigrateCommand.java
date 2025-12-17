@@ -125,17 +125,19 @@ public class MigrateCommand extends Consumer {
     }
 
     private static void performMigration(CommandSender player, String sourceType, String targetType) throws Exception {
+        ConfigHandler.migrationRunning = true;
+
         Chat.sendGlobalMessage(player, Phrase.build(Phrase.MIGRATE_STARTED, sourceType.toUpperCase(), targetType.toUpperCase()));
         Chat.sendGlobalMessage(player, Phrase.build(Phrase.PURGE_NOTICE_1));
         Chat.sendGlobalMessage(player, Phrase.build(Phrase.PURGE_NOTICE_2));
 
-        ConfigHandler.migrationRunning = true;
-
-        // Pause consumer
-        while (!Consumer.pausedSuccess) {
-            Thread.sleep(1);
-        }
+        // Pause consumer with timeout
         Consumer.isPaused = true;
+        int waitCount = 0;
+        while (!Consumer.pausedSuccess && waitCount < 30000) {
+            Thread.sleep(1);
+            waitCount++;
+        }
 
         Connection sourceConnection = null;
         Connection targetConnection = null;
@@ -216,7 +218,7 @@ public class MigrateCommand extends Consumer {
         }
         else if (type.equals("h2")) {
             Class.forName("org.h2.Driver");
-            String database = "jdbc:h2:" + ConfigHandler.path + ConfigHandler.h2database;
+            String database = "jdbc:h2:./" + ConfigHandler.path + ConfigHandler.h2database + ";NON_KEYWORDS=USER,TIME,VALUE";
             return DriverManager.getConnection(database);
         }
         return null;
@@ -230,7 +232,7 @@ public class MigrateCommand extends Consumer {
         else if (type.equals("h2")) {
             Class.forName("org.h2.Driver");
             String compressOption = Config.getGlobal().H2_COMPRESS ? ";COMPRESS=TRUE" : "";
-            String database = "jdbc:h2:" + ConfigHandler.path + ConfigHandler.h2database + compressOption;
+            String database = "jdbc:h2:./" + ConfigHandler.path + ConfigHandler.h2database + ";NON_KEYWORDS=USER,TIME,VALUE" + compressOption;
             return DriverManager.getConnection(database);
         }
         return null;
