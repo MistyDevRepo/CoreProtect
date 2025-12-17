@@ -94,10 +94,12 @@ public class WorldUtils extends Queue {
     public static String getWidIndex(String queryTable) {
         String index = "";
         boolean isMySQL = net.coreprotect.config.Config.getGlobal().MYSQL;
+        boolean isH2 = net.coreprotect.config.Config.getGlobal().H2;
         if (isMySQL) {
             index = "USE INDEX(wid) ";
         }
-        else {
+        else if (!isH2) {
+            // SQLite-specific index hints (H2 uses its own query optimizer)
             switch (queryTable) {
                 case "block":
                     index = "INDEXED BY block_index ";

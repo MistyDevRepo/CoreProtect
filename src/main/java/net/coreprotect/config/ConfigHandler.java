@@ -56,6 +56,7 @@ public class ConfigHandler extends Queue {
     public static final String LATEST_VERSION = "1.21.11";
     public static String path = "plugins/CoreProtect/";
     public static String sqlite = "database.db";
+    public static String h2database = "database";
     public static String host = "127.0.0.1";
     public static int port = 3306;
     public static String database = "database";
@@ -182,7 +183,7 @@ public class ConfigHandler extends Queue {
             ConfigFile.init(ConfigFile.LANGUAGE); // load user phrases
             ConfigFile.init(ConfigFile.LANGUAGE_CACHE); // load translation cache
 
-            // Enforce "co_" table prefix if using SQLite.
+            // Enforce "co_" table prefix if using SQLite or H2 (embedded databases).
             if (!Config.getGlobal().MYSQL) {
                 ConfigHandler.prefixConfig = Config.getGlobal().PREFIX;
                 Config.getGlobal().PREFIX = "co_";
@@ -207,7 +208,8 @@ public class ConfigHandler extends Queue {
         // close old pool when we reload the database, e.g. in purge command
         Database.closeConnection();
 
-        if (!Config.getGlobal().MYSQL) {
+        if (!Config.getGlobal().MYSQL && !Config.getGlobal().H2) {
+            // SQLite setup
             try {
                 File tempFile = File.createTempFile("CoreProtect_" + System.currentTimeMillis(), ".tmp");
                 tempFile.setExecutable(true);
@@ -232,6 +234,15 @@ public class ConfigHandler extends Queue {
                 tempFile.delete();
 
                 Class.forName("org.sqlite.JDBC");
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        else if (Config.getGlobal().H2 && !Config.getGlobal().MYSQL) {
+            // H2 setup
+            try {
+                Class.forName("org.h2.Driver");
             }
             catch (Exception e) {
                 e.printStackTrace();
@@ -271,7 +282,7 @@ public class ConfigHandler extends Queue {
             ConfigHandler.hikariDataSource = new HikariDataSource(config);
         }
 
-        Database.createDatabaseTables(ConfigHandler.prefix, false, null, Config.getGlobal().MYSQL, false);
+        Database.createDatabaseTables(ConfigHandler.prefix, false, null, Config.getGlobal().MYSQL, Config.getGlobal().H2, false);
     }
 
     public static void loadMaterials(Statement statement) {

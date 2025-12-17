@@ -73,6 +73,10 @@ public class Database extends Queue {
             if (isMySQL) {
                 statement.executeUpdate("START TRANSACTION");
             }
+            else if (Config.getGlobal().H2) {
+                // H2 auto-commits by default, use SET AUTOCOMMIT OFF for transaction control
+                statement.executeUpdate("SET AUTOCOMMIT OFF");
+            }
             else {
                 statement.executeUpdate("BEGIN TRANSACTION");
             }
@@ -89,6 +93,10 @@ public class Database extends Queue {
             try {
                 if (isMySQL) {
                     statement.executeUpdate("COMMIT");
+                }
+                else if (Config.getGlobal().H2) {
+                    statement.executeUpdate("COMMIT");
+                    statement.executeUpdate("SET AUTOCOMMIT ON");
                 }
                 else {
                     statement.executeUpdate("COMMIT TRANSACTION");
@@ -113,7 +121,8 @@ public class Database extends Queue {
     }
 
     public static void performCheckpoint(Statement statement, boolean isMySQL) throws SQLException {
-        if (!isMySQL) {
+        // WAL checkpoint is SQLite-specific, skip for MySQL and H2
+        if (!isMySQL && !Config.getGlobal().H2) {
             statement.executeUpdate("PRAGMA wal_checkpoint(TRUNCATE)");
         }
     }
@@ -130,7 +139,8 @@ public class Database extends Queue {
     }
 
     public static boolean hasReturningKeys() {
-        return (!Config.getGlobal().MYSQL && ConfigHandler.SERVER_VERSION >= 20);
+        // Only SQLite 3.35+ supports RETURNING clause. H2 and MySQL use getGeneratedKeys()
+        return (!Config.getGlobal().MYSQL && !Config.getGlobal().H2 && ConfigHandler.SERVER_VERSION >= 20);
     }
 
     public static void containerBreakCheck(String user, Material type, Object container, ItemStack[] contents, Location location) {
@@ -180,7 +190,31 @@ public class Database extends Queue {
                     e.printStackTrace();
                 }
             }
+            else if (Config.getGlobal().H2) {
+                // H2 embedded database connection
+                if (Consumer.transacting && onlyCheckTransacting) {
+                    Consumer.interrupt = true;
+                }
+
+                long startTime = System.nanoTime();
+                while (Consumer.isPaused && !force && (Consumer.transacting || !onlyCheckTransacting)) {
+                    Thread.sleep(1);
+                    long pauseTime = (System.nanoTime() - startTime) / 1000000;
+
+                    if (pauseTime >= waitTime) {
+                        return connection;
+                    }
+                }
+
+                // H2 connection URL with compression option
+                String compressOption = Config.getGlobal().H2_COMPRESS ? ";COMPRESS=TRUE" : "";
+                String database = "jdbc:h2:" + ConfigHandler.path + ConfigHandler.h2database + compressOption;
+                connection = DriverManager.getConnection(database);
+
+                ConfigHandler.databaseReachable = true;
+            }
             else {
+                // SQLite connection
                 if (Consumer.transacting && onlyCheckTransacting) {
                     Consumer.interrupt = true;
                 }
@@ -278,7 +312,8 @@ public class Database extends Queue {
 
     private static void initializeTables(String prefix, Statement statement) {
         try {
-            if (!Config.getGlobal().MYSQL) {
+            if (!Config.getGlobal().MYSQL && !Config.getGlobal().H2) {
+                // SQLite-specific PRAGMA settings
                 // Set page size before other PRAGMA statements (only effective on new databases)
                 int pageSize = Config.getGlobal().SQLITE_PAGE_SIZE;
                 if (pageSize != 4096) {
@@ -319,12 +354,15 @@ public class Database extends Queue {
 
     private static final List<String> DATABASE_TABLES = Arrays.asList("art_map", "block", "chat", "command", "container", "item", "database_lock", "entity", "entity_map", "material_map", "blockdata_map", "session", "sign", "skull", "user", "username_log", "version", "world");
 
-    public static void createDatabaseTables(String prefix, boolean forcePrefix, Connection forceConnection, boolean mySQL, boolean purge) {
+    public static void createDatabaseTables(String prefix, boolean forcePrefix, Connection forceConnection, boolean mySQL, boolean h2, boolean purge) {
         ConfigHandler.databaseTables.clear();
         ConfigHandler.databaseTables.addAll(DATABASE_TABLES);
 
         if (mySQL) {
             createMySQLTables(prefix, forceConnection, purge);
+        }
+        else if (h2) {
+            createH2Tables(prefix, forcePrefix, forceConnection, purge);
         }
         else {
             createSQLiteTables(prefix, forcePrefix, forceConnection, purge);
@@ -569,6 +607,174 @@ public class Database extends Queue {
     private static void createSQLiteIndex(Statement statement, List<String> indexData, String attachDatabase, String indexName, String indexColumns) throws SQLException {
         if (!indexData.contains(indexName)) {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS " + attachDatabase + indexName + " ON " + indexColumns + ";");
+        }
+    }
+
+    // H2 Database Methods
+    private static void createH2Tables(String prefix, boolean forcePrefix, Connection forceConnection, boolean purge) {
+        try (Connection connection = (forceConnection != null ? forceConnection : Database.getConnection(true, 0))) {
+            Statement statement = connection.createStatement();
+            List<String> tableData = new ArrayList<>();
+            List<String> indexData = new ArrayList<>();
+
+            identifyExistingH2TablesAndIndexes(statement, tableData, indexData);
+            createH2TableStructures(prefix, statement, tableData);
+            createH2Indexes(forcePrefix == true ? prefix : ConfigHandler.prefix, statement, indexData, purge);
+
+            if (!purge && forceConnection == null) {
+                initializeH2Tables(prefix, statement);
+            }
+            statement.close();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void identifyExistingH2TablesAndIndexes(Statement statement, List<String> tableData, List<String> indexData) throws SQLException {
+        // Get existing tables
+        String tableQuery = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='PUBLIC'";
+        ResultSet rs = statement.executeQuery(tableQuery);
+        while (rs.next()) {
+            tableData.add(rs.getString("TABLE_NAME").toLowerCase());
+        }
+        rs.close();
+
+        // Get existing indexes
+        String indexQuery = "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES WHERE TABLE_SCHEMA='PUBLIC'";
+        rs = statement.executeQuery(indexQuery);
+        while (rs.next()) {
+            String indexName = rs.getString("INDEX_NAME");
+            if (indexName != null) {
+                indexData.add(indexName.toLowerCase());
+            }
+        }
+        rs.close();
+    }
+
+    private static void createH2TableStructures(String prefix, Statement statement, List<String> tableData) throws SQLException {
+        // H2 uses IDENTITY for auto-increment and has different syntax than SQLite
+        if (!tableData.contains(prefix.toLowerCase() + "art_map")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "art_map (rowid IDENTITY, id INT, art VARCHAR(255))");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "block")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "block (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, type INT, data INT, meta BLOB, blockdata BLOB, action INT, rolled_back INT)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "chat")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "chat (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, message CLOB)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "command")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "command (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, message CLOB)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "container")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "container (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, type INT, data INT, amount INT, metadata BLOB, action INT, rolled_back INT)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "item")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "item (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, type INT, data BLOB, amount INT, action INT, rolled_back INT)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "database_lock")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "database_lock (rowid IDENTITY, status INT, time INT)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "entity")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "entity (rowid IDENTITY, time INT, data BLOB)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "entity_map")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "entity_map (rowid IDENTITY, id INT, entity VARCHAR(255))");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "material_map")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "material_map (rowid IDENTITY, id INT, material VARCHAR(255))");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "blockdata_map")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "blockdata_map (rowid IDENTITY, id INT, data CLOB)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "session")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "session (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, action INT)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "sign")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "sign (rowid IDENTITY, time INT, user INT, wid INT, x INT, y INT, z INT, action INT, color INT, color_secondary INT, data INT, waxed INT, face INT, line_1 CLOB, line_2 CLOB, line_3 CLOB, line_4 CLOB, line_5 CLOB, line_6 CLOB, line_7 CLOB, line_8 CLOB)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "skull")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "skull (rowid IDENTITY, time INT, owner CLOB, skin CLOB)");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "user")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "user (rowid IDENTITY, time INT, user VARCHAR(255), uuid VARCHAR(64))");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "username_log")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "username_log (rowid IDENTITY, time INT, uuid VARCHAR(64), user VARCHAR(255))");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "version")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "version (rowid IDENTITY, time INT, version VARCHAR(16))");
+        }
+        if (!tableData.contains(prefix.toLowerCase() + "world")) {
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS " + prefix + "world (rowid IDENTITY, id INT, world VARCHAR(255))");
+        }
+    }
+
+    private static void createH2Indexes(String prefix, Statement statement, List<String> indexData, boolean purge) {
+        try {
+            createH2Index(statement, indexData, "art_map_id_index", prefix + "art_map(id)");
+            createH2Index(statement, indexData, "block_index", prefix + "block(wid,x,z,time)");
+            createH2Index(statement, indexData, "block_user_index", prefix + "block(user,time)");
+            createH2Index(statement, indexData, "block_type_index", prefix + "block(type,time)");
+            createH2Index(statement, indexData, "blockdata_map_id_index", prefix + "blockdata_map(id)");
+            createH2Index(statement, indexData, "chat_index", prefix + "chat(time)");
+            createH2Index(statement, indexData, "chat_user_index", prefix + "chat(user,time)");
+            createH2Index(statement, indexData, "chat_wid_index", prefix + "chat(wid,x,z,time)");
+            createH2Index(statement, indexData, "command_index", prefix + "command(time)");
+            createH2Index(statement, indexData, "command_user_index", prefix + "command(user,time)");
+            createH2Index(statement, indexData, "command_wid_index", prefix + "command(wid,x,z,time)");
+            createH2Index(statement, indexData, "container_index", prefix + "container(wid,x,z,time)");
+            createH2Index(statement, indexData, "container_user_index", prefix + "container(user,time)");
+            createH2Index(statement, indexData, "container_type_index", prefix + "container(type,time)");
+            createH2Index(statement, indexData, "item_index", prefix + "item(wid,x,z,time)");
+            createH2Index(statement, indexData, "item_user_index", prefix + "item(user,time)");
+            createH2Index(statement, indexData, "item_type_index", prefix + "item(type,time)");
+            createH2Index(statement, indexData, "entity_map_id_index", prefix + "entity_map(id)");
+            createH2Index(statement, indexData, "material_map_id_index", prefix + "material_map(id)");
+            createH2Index(statement, indexData, "session_index", prefix + "session(wid,x,z,time)");
+            createH2Index(statement, indexData, "session_action_index", prefix + "session(action,time)");
+            createH2Index(statement, indexData, "session_user_index", prefix + "session(user,time)");
+            createH2Index(statement, indexData, "session_time_index", prefix + "session(time)");
+            createH2Index(statement, indexData, "sign_index", prefix + "sign(wid,x,z,time)");
+            createH2Index(statement, indexData, "sign_user_index", prefix + "sign(user,time)");
+            createH2Index(statement, indexData, "sign_time_index", prefix + "sign(time)");
+            createH2Index(statement, indexData, "user_index", prefix + "user(user)");
+            createH2Index(statement, indexData, "uuid_index", prefix + "user(uuid)");
+            createH2Index(statement, indexData, "username_log_uuid_index", prefix + "username_log(uuid,user)");
+            createH2Index(statement, indexData, "world_id_index", prefix + "world(id)");
+        }
+        catch (Exception e) {
+            Chat.console(Phrase.build(Phrase.DATABASE_INDEX_ERROR));
+            if (purge) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void createH2Index(Statement statement, List<String> indexData, String indexName, String indexColumns) throws SQLException {
+        if (!indexData.contains(indexName.toLowerCase())) {
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS " + indexName + " ON " + indexColumns);
+        }
+    }
+
+    private static void initializeH2Tables(String prefix, Statement statement) {
+        try {
+            boolean lockInitialized = false;
+            String query = "SELECT rowid as id FROM " + prefix + "database_lock WHERE rowid=1 LIMIT 1";
+            ResultSet rs = statement.executeQuery(query);
+            while (rs.next()) {
+                lockInitialized = true;
+            }
+            rs.close();
+
+            if (!lockInitialized) {
+                int unixtimestamp = (int) (System.currentTimeMillis() / 1000L);
+                statement.executeUpdate("INSERT INTO " + prefix + "database_lock (status, time) VALUES (0, " + unixtimestamp + ")");
+                Process.lastLockUpdate = 0;
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

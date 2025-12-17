@@ -119,6 +119,9 @@ public class PluginInitializationService {
         if (Config.getGlobal().MYSQL) {
             Chat.console(Phrase.build(Phrase.USING_MYSQL));
         }
+        else if (Config.getGlobal().H2) {
+            Chat.console(Phrase.build(Phrase.USING_H2));
+        }
         else {
             Chat.console(Phrase.build(Phrase.USING_SQLITE));
         }

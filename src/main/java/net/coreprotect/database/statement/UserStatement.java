@@ -70,7 +70,8 @@ public class UserStatement {
 
         try {
             String collate = "";
-            if (!Config.getGlobal().MYSQL) {
+            if (!Config.getGlobal().MYSQL && !Config.getGlobal().H2) {
+                // SQLite-specific case-insensitive collation
                 collate = " COLLATE NOCASE";
             }
 

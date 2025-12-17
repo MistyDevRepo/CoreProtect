@@ -232,6 +232,7 @@ public class Language {
         phrases.put(Phrase.UPGRADE_IN_PROGRESS, "Upgrade in progress. Please try again later.");
         phrases.put(Phrase.USER_NOT_FOUND, "User \"{0}\" not found.");
         phrases.put(Phrase.USER_OFFLINE, "The user \"{0}\" is not online.");
+        phrases.put(Phrase.USING_H2, "Using H2 for data storage.");
         phrases.put(Phrase.USING_MYSQL, "Using MySQL for data storage.");
         phrases.put(Phrase.USING_SQLITE, "Using SQLite for data storage.");
         phrases.put(Phrase.VALID_DONATION_KEY, "Valid donation key.");

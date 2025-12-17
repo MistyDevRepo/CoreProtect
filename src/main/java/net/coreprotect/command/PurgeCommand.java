@@ -227,7 +227,9 @@ public class PurgeCommand extends Consumer {
                     boolean abort = false;
                     String purgePrefix = "tmp_" + ConfigHandler.prefix;
 
-                    if (!Config.getGlobal().MYSQL) {
+                    // SQLite uses ATTACH DATABASE for temp file purge, H2 uses MySQL-style in-place purge
+                    boolean useAttachDatabase = !Config.getGlobal().MYSQL && !Config.getGlobal().H2;
+                    if (useAttachDatabase) {
                         query = "ATTACH DATABASE '" + ConfigHandler.path + ConfigHandler.sqlite + ".tmp' AS tmp_db";
                         preparedStmt = connection.prepareStatement(query);
                         preparedStmt.execute();
@@ -244,7 +246,7 @@ public class PurgeCommand extends Consumer {
                         return;
                     }
 
-                    if (!Config.getGlobal().MYSQL) {
+                    if (useAttachDatabase) {
                         for (String table : ConfigHandler.databaseTables) {
                             try {
                                 query = "DROP TABLE IF EXISTS " + purgePrefix + table + "";
@@ -257,7 +259,7 @@ public class PurgeCommand extends Consumer {
                             }
                         }
 
-                        Database.createDatabaseTables(purgePrefix, false, null, Config.getGlobal().MYSQL, true);
+                        Database.createDatabaseTables(purgePrefix, false, null, Config.getGlobal().MYSQL, Config.getGlobal().H2, true);
                     }
 
                     List<String> purgeTables = Arrays.asList("sign", "container", "item", "skull", "session", "chat", "command", "entity", "block");
@@ -268,7 +270,7 @@ public class PurgeCommand extends Consumer {
                         String tableName = table.replaceAll("_", " ");
                         Chat.sendGlobalMessage(player, Phrase.build(Phrase.PURGE_PROCESSING, tableName));
 
-                        if (!Config.getGlobal().MYSQL) {
+                        if (useAttachDatabase) {
                             String columns = "";
                             ResultSet rs = connection.createStatement().executeQuery("SELECT * FROM " + purgePrefix + table);
                             ResultSetMetaData resultSetMetaData = rs.getMetaData();
@@ -471,7 +473,7 @@ public class PurgeCommand extends Consumer {
                     connection.close();
 
                     if (abort) {
-                        if (!Config.getGlobal().MYSQL) {
+                        if (useAttachDatabase) {
                             (new File(ConfigHandler.path + ConfigHandler.sqlite + ".tmp")).delete();
                         }
                         ConfigHandler.loadDatabase();
@@ -481,7 +483,7 @@ public class PurgeCommand extends Consumer {
                         return;
                     }
 
-                    if (!Config.getGlobal().MYSQL) {
+                    if (useAttachDatabase) {
                         (new File(ConfigHandler.path + ConfigHandler.sqlite)).delete();
                         (new File(ConfigHandler.path + ConfigHandler.sqlite + ".tmp")).renameTo(new File(ConfigHandler.path + ConfigHandler.sqlite));
                     }

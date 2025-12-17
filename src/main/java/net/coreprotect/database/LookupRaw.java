@@ -602,7 +602,8 @@ public class LookupRaw extends Queue {
 
                 unionSelect = "(";
             }
-            else {
+            else if (!Config.getGlobal().H2) {
+                // SQLite-specific index hints (H2 uses its own query optimizer)
                 if (queryTable.equals("block")) {
                     if (includeBlock.length() > 0 || includeEntity.length() > 0) {
                         index = "INDEXED BY block_type_index ";

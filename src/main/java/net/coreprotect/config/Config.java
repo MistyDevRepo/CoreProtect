@@ -51,6 +51,8 @@ public class Config extends Language {
     public boolean EXCLUDE_TNT;
     public boolean NETWORK_DEBUG;
     public boolean MYSQL;
+    public boolean H2;
+    public boolean H2_COMPRESS;
     public boolean CHECK_UPDATES;
     public boolean API_ENABLED;
     public boolean VERBOSE;
@@ -97,6 +99,8 @@ public class Config extends Language {
     static {
         DEFAULT_VALUES.put("donation-key", "");
         DEFAULT_VALUES.put("use-mysql", "false");
+        DEFAULT_VALUES.put("use-h2", "false");
+        DEFAULT_VALUES.put("h2-compress", "true");
         DEFAULT_VALUES.put("table-prefix", "co_");
         DEFAULT_VALUES.put("mysql-host", "127.0.0.1");
         DEFAULT_VALUES.put("mysql-port", "3306");
@@ -148,6 +152,8 @@ public class Config extends Language {
 
         HEADERS.put("donation-key", new String[] { "# CoreProtect is donationware. Obtain a donation key from coreprotect.net/donate/" });
         HEADERS.put("use-mysql", new String[] { "# MySQL is optional and not required.", "# If you prefer to use MySQL, enable the following and fill out the fields." });
+        HEADERS.put("use-h2", new String[] { "# H2 is an alternative embedded database with built-in compression.", "# Enabling H2 will reduce database file size by approximately 30-50%.", "# Note: Only one database type can be active (MySQL takes priority, then H2, then SQLite)." });
+        HEADERS.put("h2-compress", new String[] { "# If enabled, H2 will compress data to reduce file size by ~30-50%.", "# Disabling may slightly improve performance at the cost of larger files." });
         HEADERS.put("language", new String[] { "# If modified, will automatically attempt to translate languages phrases.", "# List of language codes: https://coreprotect.net/languages/" });
         HEADERS.put("check-updates", new String[] { "# If enabled, CoreProtect will check for updates when your server starts up.", "# If an update is available, you'll be notified via your server console.", });
         HEADERS.put("api-enabled", new String[] { "# If enabled, other plugins will be able to utilize the CoreProtect API.", });
@@ -207,6 +213,8 @@ public class Config extends Language {
         this.MAXIMUM_POOL_SIZE = this.getInt("maximum-pool-size", 10);
         this.DONATION_KEY = this.getString("donation-key");
         this.MYSQL = this.getBoolean("use-mysql");
+        this.H2 = this.getBoolean("use-h2");
+        this.H2_COMPRESS = this.getBoolean("h2-compress", true);
         this.PREFIX = this.getString("table-prefix");
         this.MYSQL_HOST = this.getString("mysql-host");
         this.MYSQL_PORT = this.getInt("mysql-port");
